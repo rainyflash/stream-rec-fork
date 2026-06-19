@@ -24,37 +24,33 @@
  * SOFTWARE.
  */
 
-package github.hua0512.plugins.douyin.download
+package douyin
 
-import com.github.michaelbull.result.Result
-import github.hua0512.plugins.StrevExtractor
-import github.hua0512.plugins.base.ExtractorError
-import github.hua0512.plugins.douyin.download.DouyinApis.Companion.LIVE_DOUYIN_URL
-import io.ktor.client.*
-import io.ktor.http.*
-import kotlinx.serialization.json.Json
+import github.hua0512.plugins.douyin.download.isDouyinUrl
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.equals.shouldBeEqual
 
-/**
- * Douyin live stream extractor using strev api
- * @author hua0512
- * @date : 9/10/2025 12:05 PM
- */
-class DouyinStrevExtractor(http: HttpClient, json: Json, override val url: String) : StrevExtractor(http, json, url) {
+class DouyinUrlResolverTest : FunSpec({
 
-  internal var idStr = ""
-
-  init {
-    platformHeaders[HttpHeaders.Referrer] = LIVE_DOUYIN_URL
-  }
-
-  override suspend fun resolveExtractUrl(): Result<String, ExtractorError> = resolveDouyinExtractUrl(http, url)
-
-  override suspend fun isLive(): Result<Boolean, ExtractorError> {
-    val result = super.isLive()
-    if (result.isOk) {
-      // extract id_str from extras
-      idStr = cachedMediaInfo?.extras?.get("id_str") ?: ""
+  test("matches douyin live and share urls") {
+    listOf(
+      "https://live.douyin.com/802975310822",
+      "https://v.douyin.com/abc123/",
+      "https://www.douyin.com/user/MS4wLjABAAAA_test",
+      "https://www.iesdouyin.com/share/user/MS4wLjABAAAA_test",
+      "live.douyin.com/802975310822",
+    ).forEach { url ->
+      isDouyinUrl(url) shouldBeEqual true
     }
-    return result
   }
-}
+
+  test("rejects non-douyin urls") {
+    listOf(
+      "",
+      "https://www.douyu.com/123",
+      "https://example.com/live.douyin.com/123",
+    ).forEach { url ->
+      isDouyinUrl(url) shouldBeEqual false
+    }
+  }
+})

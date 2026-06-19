@@ -30,6 +30,7 @@ import github.hua0512.app.App
 import github.hua0512.plugins.base.Extractor
 import github.hua0512.plugins.base.IExtractorFactory
 import github.hua0512.plugins.douyin.download.DouyinStrevExtractor
+import github.hua0512.plugins.douyin.download.isDouyinUrl
 import github.hua0512.plugins.douyu.download.DouyuExtractor
 import github.hua0512.plugins.huya.download.HuyaExtractor
 import github.hua0512.plugins.huya.download.HuyaExtractorV2
@@ -62,8 +63,12 @@ class ExtractorFactory(val app: App, val client: HttpClient, val json: Json) : I
       return HuyaExtractorV2(client, json, url)
     }
 
+    if (isDouyinUrl(url)) {
+      return DouyinStrevExtractor(client, json, url).populateExtractorParams()
+    }
+
     // for example live.douyin.com
-    val host = Url(url).host
+    val host = kotlin.runCatching { Url(url).host }.getOrElse { return null }
 
     mainLogger.debug("host : $host")
 

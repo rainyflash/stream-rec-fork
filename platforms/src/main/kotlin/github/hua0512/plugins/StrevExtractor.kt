@@ -52,6 +52,8 @@ open class StrevExtractor(http: HttpClient, json: Json, override val url: String
 
   internal var cachedMediaInfo: MediaInfo? = null
 
+  protected open suspend fun resolveExtractUrl(): Result<String, ExtractorError> = Ok(url)
+
   override suspend fun isLive(): Result<Boolean, ExtractorError> {
     return try {
       val mediaResult = extractMediaInfo()
@@ -76,8 +78,14 @@ open class StrevExtractor(http: HttpClient, json: Json, override val url: String
   private suspend fun extractMediaInfo(): Result<MediaInfo, ExtractorError> {
     return try {
       withContext(Dispatchers.IO) {
+        val extractUrlResult = resolveExtractUrl()
+        if (extractUrlResult.isErr) {
+          return@withContext extractUrlResult.asErr()
+        }
+        val extractUrl = extractUrlResult.get()!!
+
         // Execute strev command with proper stream handling
-        val process = ProcessBuilder(Programs.strev, "extract", "--url", url, "--cookies", cookies, "--output", "json")
+        val process = ProcessBuilder(Programs.strev, "extract", "--url", extractUrl, "--cookies", cookies, "--output", "json")
           .redirectErrorStream(true)
           .start()
 
@@ -111,7 +119,7 @@ open class StrevExtractor(http: HttpClient, json: Json, override val url: String
         val coverUrl = mediaObject["cover_url"]?.jsonPrimitive?.content ?: ""
         val artistUrl = mediaObject["artist_url"]?.jsonPrimitive?.content ?: ""
         val isLive = mediaObject["is_live"]?.jsonPrimitive?.boolean ?: false
-        val siteUrl = mediaObject["site_url"]?.jsonPrimitive?.content ?: url
+        val siteUrl = mediaObject["site_url"]?.jsonPrimitive?.content ?: extractUrl
 
         // Extract extras (headers) and populate platform headers
         val extrasValue = mediaObject["extras"]
