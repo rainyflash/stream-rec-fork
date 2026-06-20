@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CONFIG=/etc/rclone/rclone.conf
+SOURCE=/srv/stream-rec/downloads
+DEST=r2:stream-rec-recordings
+LOG=/srv/stream-rec/logs/r2-upload.log
+
+mkdir -p "$(dirname "$LOG")"
+
+if [ ! -s "$CONFIG" ]; then
+  echo "$(date -Is) rclone config missing: $CONFIG" >> "$LOG"
+  exit 0
+fi
+
+rclone move "$SOURCE" "$DEST" \
+  --config "$CONFIG" \
+  --min-age 10m \
+  --transfers 2 \
+  --checkers 4 \
+  --delete-empty-src-dirs \
+  --log-file "$LOG" \
+  --log-level INFO
