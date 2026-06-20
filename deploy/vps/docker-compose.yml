@@ -1,0 +1,33 @@
+services:
+  stream-rec-backend:
+    container_name: stream-rec
+    image: stream-rec-backend:vps
+    environment:
+      TZ: Asia/Shanghai
+      DB_PATH: /data
+      DOWNLOAD_PATH: /downloads
+      LOGIN_SECRET: ${STREAM_REC_LOGIN_SECRET}
+    volumes:
+      - ./data:/data
+      - ./downloads:/downloads
+      - ./rclone:/root/.config/rclone
+    ports:
+      - "12555:12555"
+    restart: unless-stopped
+
+  stream-rec-frontend:
+    container_name: stream-rec-frontend
+    image: stream-rec-frontend:vps
+    environment:
+      TZ: Asia/Shanghai
+      API_URL: http://stream-rec-backend:12555/api
+      WS_API_URL: ws://${PUBLIC_HOST}:12555/live/update
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      NEXTAUTH_URL: http://${PUBLIC_HOST}:15275
+      NEXT_PUBLIC_BASE_URL: http://${PUBLIC_HOST}:15275
+      AUTH_TRUST_HOST: "true"
+    ports:
+      - "15275:15275"
+    depends_on:
+      - stream-rec-backend
+    restart: unless-stopped
