@@ -14,19 +14,16 @@ if [ ! -s "$CONFIG" ]; then
   exit 0
 fi
 
-if ! command -v lsof >/dev/null 2>&1; then
-  echo "$(date -Is) lsof missing; refusing to upload without open-file protection" >> "$LOG"
+if ! command -v fuser >/dev/null 2>&1; then
+  echo "$(date -Is) fuser missing; refusing to upload without open-file protection" >> "$LOG"
   exit 0
 fi
 
-OPEN_FILES=$(mktemp)
 UPLOAD_FILES=$(mktemp)
-trap 'rm -f "$OPEN_FILES" "$UPLOAD_FILES"' EXIT
-
-lsof -w -F n +D "$SOURCE" 2>/dev/null | sed -n 's/^n//p' | sort -u > "$OPEN_FILES" || true
+trap 'rm -f "$UPLOAD_FILES"' EXIT
 
 while IFS= read -r -d '' file; do
-  if grep -Fxq "$file" "$OPEN_FILES"; then
+  if fuser -s "$file" 2>/dev/null; then
     echo "$(date -Is) skip open file: ${file#$SOURCE/}" >> "$LOG"
     continue
   fi
