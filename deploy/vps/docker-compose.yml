@@ -24,6 +24,7 @@ services:
       WS_API_URL: ws://${PUBLIC_HOST}:12555/live/update
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       NEXTAUTH_URL: http://${PUBLIC_HOST}:15275
+      NEXTAUTH_URL_INTERNAL: http://127.0.0.1:15275
       NEXT_PUBLIC_BASE_URL: http://${PUBLIC_HOST}:15275
       AUTH_TRUST_HOST: "true"
     ports:
