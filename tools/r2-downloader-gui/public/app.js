@@ -11,6 +11,7 @@ const elements = {
 	remoteLabel: document.querySelector("#remoteLabel"),
 	refreshButton: document.querySelector("#refreshButton"),
 	downloadButton: document.querySelector("#downloadButton"),
+	motrixButton: document.querySelector("#motrixButton"),
 	openFolderButton: document.querySelector("#openFolderButton"),
 	destinationInput: document.querySelector("#destinationInput"),
 	searchInput: document.querySelector("#searchInput"),
@@ -72,6 +73,7 @@ function updateSelectionState() {
 
 	elements.summaryLabel.textContent = `${filtered.length} 个文件，已选 ${selectedTotal} 个（${formatBytes(selectedBytes)}）`
 	elements.downloadButton.disabled = selectedTotal === 0 || state.activeJobId !== null
+	elements.motrixButton.disabled = selectedTotal === 0
 	elements.selectAllInput.checked = filtered.length > 0 && selectedInView === filtered.length
 	elements.selectAllInput.indeterminate = selectedInView > 0 && selectedInView < filtered.length
 }
@@ -196,6 +198,38 @@ async function startDownload() {
 	pollJob()
 }
 
+async function sendSelectedToMotrix() {
+	const paths = [...state.selected]
+	if (paths.length === 0) return
+
+	elements.motrixButton.disabled = true
+	elements.motrixButton.textContent = "发送中..."
+	elements.jobLabel.textContent = "正在生成 R2 临时链接"
+	elements.logOutput.textContent = "正在发送任务到 Motrix..."
+
+	try {
+		const result = await requestJson("/api/motrix/download", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				paths,
+				destination: elements.destinationInput.value,
+			}),
+		})
+
+		elements.jobLabel.textContent = `已发送到 Motrix：${result.tasks.length} 个文件`
+		elements.logOutput.textContent = result.tasks
+			.map(task => `${task.gid}  ${task.path}`)
+			.join("\n")
+	} catch (error) {
+		elements.jobLabel.textContent = "发送 Motrix 失败"
+		elements.logOutput.textContent = error.message
+	} finally {
+		elements.motrixButton.textContent = "发送到 Motrix"
+		updateSelectionState()
+	}
+}
+
 async function pollJob() {
 	if (!state.activeJobId) return
 
@@ -235,6 +269,9 @@ elements.downloadButton.addEventListener("click", () => {
 	startDownload().catch(error => {
 		elements.logOutput.textContent = error.message
 	})
+})
+elements.motrixButton.addEventListener("click", () => {
+	sendSelectedToMotrix()
 })
 elements.openFolderButton.addEventListener("click", () => {
 	openFolder().catch(error => {

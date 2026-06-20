@@ -97,6 +97,45 @@ function runBuffered(args) {
 	})
 }
 
+function getMotrixConfig() {
+	const configPath = path.join(os.homedir(), "AppData", "Roaming", "com.motrix.next", "config.json")
+	const raw = fs.readFileSync(configPath, "utf8")
+	const parsed = JSON.parse(raw)
+	const preferences = parsed.preferences || {}
+	return {
+		port: Number(preferences.rpcListenPort || 16800),
+		secret: String(preferences.rpcSecret || ""),
+	}
+}
+
+async function callMotrix(method, params) {
+	const config = getMotrixConfig()
+	const response = await fetch(`http://127.0.0.1:${config.port}/jsonrpc`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json; charset=utf-8" },
+		body: JSON.stringify({
+			jsonrpc: "2.0",
+			id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+			method,
+			params: [`token:${config.secret}`, ...params],
+		}),
+	})
+	const data = await response.json()
+	if (!response.ok || data.error) {
+		throw new Error(data.error?.message || `Motrix RPC 调用失败：${response.status}`)
+	}
+	return data.result
+}
+
+async function createPresignedUrl(remotePath) {
+	const output = await runBuffered(["link", `${REMOTE}/${remotePath}`])
+	const url = output.split(/\r?\n/).find(line => line.startsWith("http"))
+	if (!url) {
+		throw new Error(`无法生成临时链接：${remotePath}`)
+	}
+	return url.trim()
+}
+
 function sanitizeRemotePath(value) {
 	if (typeof value !== "string") return ""
 	return value.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\0/g, "")
@@ -206,6 +245,50 @@ async function createDownloadJob(req, res) {
 	sendJson(res, 202, { jobId: id })
 }
 
+async function sendToMotrix(req, res) {
+	const body = JSON.parse((await readBody(req)) || "{}")
+	const paths = Array.isArray(body.paths) ? body.paths.map(sanitizeRemotePath).filter(Boolean) : []
+	const destination = normalizeDestination(body.destination)
+
+	if (paths.length === 0) {
+		sendJson(res, 400, { error: "至少选择一个文件" })
+		return
+	}
+
+	const tasks = []
+	for (const remotePath of paths) {
+		const relativeDir = path.posix.dirname(remotePath)
+		const fileName = path.posix.basename(remotePath)
+		const targetDir = relativeDir === "." ? destination : path.join(destination, relativeDir)
+		await fsp.mkdir(targetDir, { recursive: true })
+
+		const url = await createPresignedUrl(remotePath)
+		const gid = await callMotrix("aria2.addUri", [
+			[url],
+			{
+				dir: targetDir,
+				out: fileName,
+				split: "16",
+				"max-connection-per-server": "16",
+				"min-split-size": "1M",
+				continue: "true",
+			},
+		])
+		tasks.push({ path: remotePath, gid })
+	}
+
+	sendJson(res, 200, { tasks })
+}
+
+async function getMotrixStatus(res) {
+	try {
+		const version = await callMotrix("aria2.getVersion", [])
+		sendJson(res, 200, { available: true, version })
+	} catch (error) {
+		sendJson(res, 200, { available: false, error: error instanceof Error ? error.message : "Motrix 不可用" })
+	}
+}
+
 function getJob(res, id) {
 	const job = jobs.get(id)
 	if (!job) {
@@ -286,6 +369,16 @@ async function handleRequest(req, res) {
 
 		if (req.method === "POST" && reqUrl.pathname === "/api/download") {
 			await createDownloadJob(req, res)
+			return
+		}
+
+		if (req.method === "GET" && reqUrl.pathname === "/api/motrix/status") {
+			await getMotrixStatus(res)
+			return
+		}
+
+		if (req.method === "POST" && reqUrl.pathname === "/api/motrix/download") {
+			await sendToMotrix(req, res)
 			return
 		}
 
