@@ -1,0 +1,13 @@
+{
+	"name": "stream-rec-r2-downloader-gui",
+	"version": "0.1.0",
+	"private": true,
+	"bin": "launcher.js",
+	"scripts": {
+		"build:win": "node build-sea.js"
+	},
+	"devDependencies": {
+		"esbuild": "^0.28.1",
+		"postject": "^1.0.0-alpha.6"
+	}
+}

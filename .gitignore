@@ -43,3 +43,8 @@ out/
 *.env
 .env*.local
 TODO.md
+
+### Node tools ###
+node_modules/
+tools/r2-downloader-gui/build/
+tools/r2-downloader-gui/dist/

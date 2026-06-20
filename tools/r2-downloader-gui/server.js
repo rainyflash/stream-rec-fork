@@ -5,6 +5,13 @@ const path = require("node:path")
 const os = require("node:os")
 const { spawn, execFileSync } = require("node:child_process")
 
+let sea = null
+try {
+	sea = require("node:sea")
+} catch {
+	sea = null
+}
+
 const HOST = "127.0.0.1"
 const PORT = Number(process.env.PORT || 15721)
 const REMOTE = process.env.R2_REMOTE || "stream-rec-r2:stream-rec-recordings"
@@ -320,29 +327,64 @@ function openFolder(res, reqUrl) {
 	sendJson(res, 200, { ok: true })
 }
 
-function serveStatic(reqUrl, res) {
+function getStaticRelativePath(reqUrl) {
 	const requested = reqUrl.pathname === "/" ? "/index.html" : reqUrl.pathname
-	const target = path.normalize(path.join(STATIC_DIR, decodeURIComponent(requested)))
-	if (!target.startsWith(STATIC_DIR)) {
+	const relativePath = path.posix.normalize(decodeURIComponent(requested).replace(/^\/+/, ""))
+	if (relativePath === "." || relativePath.startsWith("../") || path.isAbsolute(relativePath)) return null
+	return relativePath
+}
+
+function getStaticContentType(relativePath) {
+	const ext = path.extname(relativePath)
+	const types = {
+		".html": "text/html; charset=utf-8",
+		".css": "text/css; charset=utf-8",
+		".js": "text/javascript; charset=utf-8",
+		".svg": "image/svg+xml",
+	}
+	return types[ext] || "application/octet-stream"
+}
+
+function readSeaAsset(relativePath) {
+	if (!sea || typeof sea.isSea !== "function" || !sea.isSea()) return null
+	try {
+		return Buffer.from(sea.getAsset(`public/${relativePath}`))
+	} catch {
+		return null
+	}
+}
+
+function sendStaticBuffer(res, data, contentType) {
+	res.writeHead(200, {
+		"Content-Type": contentType,
+		"Cache-Control": "no-store",
+	})
+	res.end(data)
+}
+
+function serveStatic(reqUrl, res) {
+	const relativePath = getStaticRelativePath(reqUrl)
+	if (!relativePath) {
 		sendText(res, 403, "Forbidden")
 		return
 	}
 
+	const contentType = getStaticContentType(relativePath)
+	const asset = readSeaAsset(relativePath)
+	if (asset) {
+		sendStaticBuffer(res, asset, contentType)
+		return
+	}
+
+	const target = path.join(STATIC_DIR, relativePath)
 	fs.readFile(target, (error, data) => {
 		if (error) {
 			sendText(res, 404, "Not found")
 			return
 		}
 
-		const ext = path.extname(target)
-		const types = {
-			".html": "text/html; charset=utf-8",
-			".css": "text/css; charset=utf-8",
-			".js": "text/javascript; charset=utf-8",
-			".svg": "image/svg+xml",
-		}
 		res.writeHead(200, {
-			"Content-Type": types[ext] || "application/octet-stream",
+			"Content-Type": contentType,
 			"Cache-Control": "no-store",
 		})
 		res.end(data)

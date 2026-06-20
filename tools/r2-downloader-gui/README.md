@@ -1,6 +1,6 @@
 # R2 录播下载器
 
-本工具是一个只监听 `127.0.0.1` 的本机 Web GUI，用于从 Cloudflare R2 下载录播文件。它不保存 R2 密钥，只调用本机已经配置好的 `rclone` remote。
+这是一个只监听 `127.0.0.1` 的本地 Web GUI，用来从 Cloudflare R2 下载录播文件。它不保存 R2 密钥，只调用本机已经配置好的 `rclone` remote。
 
 默认 remote：
 
@@ -8,17 +8,33 @@
 stream-rec-r2:stream-rec-recordings
 ```
 
-启动：
+## 直接启动
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\r2-downloader-gui\start.ps1
 ```
 
-打开：
+启动后会自动打开：
 
 ```text
 http://127.0.0.1:15721
 ```
+
+## 打包 Windows exe
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\r2-downloader-gui\build-exe.ps1
+```
+
+生成文件：
+
+```text
+tools\r2-downloader-gui\dist\stream-rec-r2-downloader.exe
+```
+
+双击 exe 后会启动本地 GUI 并自动打开浏览器。如果端口 `15721` 已经有一个 GUI 在运行，exe 会直接打开已有页面。
+
+exe 内置的是 GUI 和 Node.js 运行时；`rclone`、`rclone.conf` 和 Motrix Next 仍然使用本机现有安装。
 
 ## Motrix Next
 
@@ -30,7 +46,7 @@ http://127.0.0.1:15721
 
 R2 presigned URL 最长有效期为 7 天。
 
-可选环境变量：
+## 可选环境变量
 
 ```powershell
 $env:RCLONE_PATH="C:\path\to\rclone.exe"
